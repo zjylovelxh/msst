@@ -14,6 +14,7 @@
             <result property="userAvatar" column="userAvatar" jdbcType="VARCHAR"/>
             <result property="userProfile" column="userProfile" jdbcType="VARCHAR"/>
             <result property="userRole" column="userRole" jdbcType="VARCHAR"/>
+            <result property="editTime" column="editTime" jdbcType="TIMESTAMP"/>
             <result property="createTime" column="createTime" jdbcType="TIMESTAMP"/>
             <result property="updateTime" column="updateTime" jdbcType="TIMESTAMP"/>
             <result property="isDelete" column="isDelete" jdbcType="TINYINT"/>
@@ -23,7 +24,7 @@
         id,userAccount,userPassword,
         unionId,mpOpenId,userName,
         userAvatar,userProfile,userRole,
-        createTime,updateTime,
+        editTime,createTime,updateTime,
         isDelete
     </sql>
 </mapper>

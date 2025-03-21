@@ -119,6 +119,16 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+
+        <!--redisson分布式redis锁-->
+        <dependency>
+            <groupId>org.redisson</groupId>
+            <artifactId>redisson</artifactId>
+            <version>3.40.0</version>
+        </dependency>
+
+
+
     </dependencies>
 
     <build>
