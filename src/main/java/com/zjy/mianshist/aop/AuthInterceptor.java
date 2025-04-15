@@ -39,7 +39,7 @@ public class AuthInterceptor {
     @Around("@annotation(authCheck)")
     public Object doInterceptor(ProceedingJoinPoint joinPoint, AuthCheck authCheck) throws Throwable {
         String mustRole = authCheck.mustRole();
-        RequestAttributes requestAttributes = RequestContextHolder.currentRequestAttributes();
+        RequestAttributes requestAttributes = RequestContextHolder.currentRequestAttributes();  //RequestContextHolder作用？
         HttpServletRequest request = ((ServletRequestAttributes) requestAttributes).getRequest();
         // 当前登录用户
         User loginUser = userService.getLoginUser(request);

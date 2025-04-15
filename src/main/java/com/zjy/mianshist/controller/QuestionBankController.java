@@ -1,6 +1,9 @@
 package com.zjy.mianshist.controller;
 
+import cn.dev33.satoken.annotation.SaCheckRole;
+import com.alibaba.csp.sentinel.annotation.SentinelResource;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.jd.platform.hotkey.client.callback.JdHotKeyStore;
 import com.zjy.mianshist.annotation.AuthCheck;
 import com.zjy.mianshist.common.BaseResponse;
 import com.zjy.mianshist.common.DeleteRequest;
@@ -52,7 +55,7 @@ public class QuestionBankController {
      * @return
      */
     @PostMapping("/add")
-    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    @SaCheckRole(UserConstant.ADMIN_ROLE)
     public BaseResponse<Long> addQuestionBank(@RequestBody QuestionBankAddRequest questionBankAddRequest, HttpServletRequest request) {
         ThrowUtils.throwIf(questionBankAddRequest == null, ErrorCode.PARAMS_ERROR);
         // todo 在此处将实体类和 DTO 进行转换
@@ -79,7 +82,7 @@ public class QuestionBankController {
      * @return
      */
     @PostMapping("/delete")
-    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    @SaCheckRole(UserConstant.ADMIN_ROLE)
     public BaseResponse<Boolean> deleteQuestionBank(@RequestBody DeleteRequest deleteRequest, HttpServletRequest request) {
         if (deleteRequest == null || deleteRequest.getId() <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
@@ -106,7 +109,7 @@ public class QuestionBankController {
      * @return
      */
     @PostMapping("/update")
-    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    @SaCheckRole(UserConstant.ADMIN_ROLE)
     public BaseResponse<Boolean> updateQuestionBank(@RequestBody QuestionBankUpdateRequest questionBankUpdateRequest) {
         if (questionBankUpdateRequest == null || questionBankUpdateRequest.getId() <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);
@@ -136,14 +139,28 @@ public class QuestionBankController {
     @GetMapping("/get/vo")
     public BaseResponse<QuestionBankVO> getQuestionBankVOById(QuestionBankQueryRequest questionBankQueryRequest, HttpServletRequest request) {
         ThrowUtils.throwIf(questionBankQueryRequest.getId() <= 0, ErrorCode.PARAMS_ERROR);
+        Long id = questionBankQueryRequest.getId();
+        //设置key并判断当前是否是热key
+        String key="bank_detail_"+id;
+
+        //如果是，就从缓存取值
+        if (JdHotKeyStore.isHotKey(key)){
+            if (JdHotKeyStore.get(key)!=null){
+                return  ResultUtils.success((QuestionBankVO) JdHotKeyStore.get(key));
+            }
+        }
+
         // 查询数据库
         QuestionBank questionBank = questionBankService.getById(questionBankQueryRequest.getId());
         ThrowUtils.throwIf(questionBank == null, ErrorCode.NOT_FOUND_ERROR);
 
 
         boolean needQQuestion = questionBankQueryRequest.isNeedQueryQuestionList();
+        QuestionBankVO questionBankVO = questionBankService.getQuestionBankVO(questionBank, request, needQQuestion);
+        //如果是热key写到缓存中
+        JdHotKeyStore.smartSet(key,questionBankVO);
         // 获取封装类
-        return ResultUtils.success(questionBankService.getQuestionBankVO(questionBank, request,needQQuestion));
+        return ResultUtils.success(questionBankVO);
     }
 
     /**
@@ -153,7 +170,7 @@ public class QuestionBankController {
      * @return
      */
     @PostMapping("/list/page")
-    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    @SaCheckRole(UserConstant.ADMIN_ROLE)
     public BaseResponse<Page<QuestionBank>> listQuestionBankByPage(@RequestBody QuestionBankQueryRequest questionBankQueryRequest) {
         long current = questionBankQueryRequest.getCurrent();
         long size = questionBankQueryRequest.getPageSize();
@@ -171,6 +188,7 @@ public class QuestionBankController {
      * @return
      */
     @PostMapping("/list/page/vo")
+    @SentinelResource( value = "listQuestionBankVOByPage",fallback = "listQuestionBankVOByPageFallback")
     public BaseResponse<Page<QuestionBankVO>> listQuestionBankVOByPage(@RequestBody QuestionBankQueryRequest questionBankQueryRequest,
                                                                HttpServletRequest request) {
         long current = questionBankQueryRequest.getCurrent();
@@ -182,6 +200,11 @@ public class QuestionBankController {
                 questionBankService.getQueryWrapper(questionBankQueryRequest));
         // 获取封装类
         return ResultUtils.success(questionBankService.getQuestionBankVOPage(questionBankPage, request));
+    }
+
+    public BaseResponse<Page<QuestionBankVO>> listQuestionBankVOByPageFallback(QuestionBankQueryRequest questionBankQueryRequest,
+                                                                               HttpServletRequest request, Throwable e) {
+        return ResultUtils.error(ErrorCode.SYSTEM_ERROR, "系统错误");
     }
 
     /**
@@ -217,7 +240,7 @@ public class QuestionBankController {
      * @return
      */
     @PostMapping("/edit")
-    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    @SaCheckRole(UserConstant.ADMIN_ROLE)
     public BaseResponse<Boolean> editQuestionBank(@RequestBody QuestionBankEditRequest questionBankEditRequest, HttpServletRequest request) {
         if (questionBankEditRequest == null || questionBankEditRequest.getId() <= 0) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR);

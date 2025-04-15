@@ -1,6 +1,9 @@
 package com.zjy.mianshist.service.impl;
 
 import cn.hutool.core.collection.CollUtil;
+import cn.hutool.core.util.ObjectUtil;
+import cn.hutool.core.util.ReUtil;
+import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
@@ -18,6 +21,7 @@ import com.zjy.mianshist.model.entity.QuestionBankQuestion;
 import com.zjy.mianshist.model.entity.User;
 import com.zjy.mianshist.model.vo.QuestionVO;
 import com.zjy.mianshist.model.vo.UserVO;
+import com.zjy.mianshist.my_ai.aiManage;
 import com.zjy.mianshist.service.QuestionBankQuestionService;
 import com.zjy.mianshist.service.QuestionService;
 import com.zjy.mianshist.service.UserService;
@@ -62,6 +66,9 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
 
     @Resource
     private ElasticsearchRestTemplate elasticsearchRestTemplate;
+
+    @Resource
+    private aiManage aimanage;
     /**
      * 校验数据
      *
@@ -343,6 +350,85 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
             }
         }
     }
+
+    /**
+     * ai批量生成题目
+     * @param questiontype   题目类型
+     * @param count  数量
+     * @param user   操作人
+     * @return
+     */
+
+    @Override
+    public  Boolean addaiquestions(String questiontype, int count, User user){
+        if (ObjectUtil.hasEmpty(questiontype,count,user)){
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+
+        String systemprompt = "你是一位专业的程序员面试官，你要帮我生成 {数量} 道 {方向} 面试题，要求输出格式如下：\n" +
+                "\n" +
+                "1. 什么是 Java 中的反射？\n" +
+                "2. Java 8 中的 Stream API 有什么作用？\n" +
+                "3. xxxxxx\n" +
+                "\n" +
+                "除此之外，请不要输出任何多余的内容，不要输出开头、也不要输出结尾，只输出上面的列表。\n" +
+                "\n" +
+                "接下来我会给你要生成的题目{数量}、以及题目{方向}\n";
+        String userprompt = String.format("数量：%s ，方向：%s",count,questiontype);
+        String result = aimanage.aichat(systemprompt,userprompt);
+        List<String> questioncontent = processList(result);
+        List<Question> questions = questioncontent.stream().map(item -> {
+            Question question = new Question();
+            question.setTitle(item);
+            question.setUserId(user.getId());
+            question.setContent(item);
+            question.setTags("[\" 待审核\"]");
+            question.setAnswer(addaianswer(item));
+            return question;
+        }).collect(Collectors.toList());
+       Boolean save = this. saveBatch(questions);
+       if (!save){
+           throw new BusinessException(ErrorCode.OPERATION_ERROR,"批量生成题目失败");
+       }
+       return save;
+    }
+    public  String addaianswer(String questiontitle){
+        if (ObjectUtil.isEmpty(questiontitle)){
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        String systemprompt = "你是一位专业的程序员面试官，我会给你一道面试题，请帮我生成详细的题解。要求如下：\n" +
+                "\n" +
+                "1. 题解的语句要自然流畅\n" +
+                "2. 题解可以先给出总结性的回答，再详细解释，最后给出回答重点\n" +
+                "3. 要使用 Markdown 语法输出\n" +
+                "\n" +
+                "除此之外，请不要输出任何多余的内容，不要输出开头、也不要输出结尾，只输出题解。\n" +
+                "\n" +
+                "接下来我会给你要生成的面试题\n";
+        String result = aimanage.aichat(systemprompt,questiontitle);
+        return result;
+    }
+
+
+    /**
+     * hutool 处理批量生成的题目
+     * @param input
+     * @return
+     */
+    private static List<String> processList(String input) {
+        return CollUtil.newArrayList(input.split("\n")) // 拆分成行
+                .stream()
+                .map(line ->
+                        // 移除序号和特殊符号
+                        ReUtil.replaceAll(line, "^\\d+\\.\\s*", "") // 移除数字序号
+                                .replaceAll("`", "") // 移除所有`
+                                .trim()
+                )
+                .filter(StrUtil::isNotBlank) // 过滤空行
+                .collect(Collectors.toList());
+    }
+
+
 
 
 
